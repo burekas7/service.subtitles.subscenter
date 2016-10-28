@@ -23,6 +23,8 @@ __profile__ = unicode(xbmc.translatePath(__addon__.getAddonInfo('profile')), 'ut
 __resource__ = unicode(xbmc.translatePath(os.path.join(__cwd__, 'resources', 'lib')), 'utf-8')
 __temp__ = unicode(xbmc.translatePath(os.path.join(__profile__, 'temp')), 'utf-8')
 
+__isKodiPlaying__ = xbmc.Player().isPlaying()
+
 sys.path.append(__resource__)
 
 from SUBUtilities import SubscenterHelper, log, normalizeString, clear_store, parse_rls_title, clean_title
@@ -93,21 +95,26 @@ def get_params(string=""):
     return param
 
 def mirror_sub(id, filename, sub_file):
-    values = {}
-    values['id'] = id
-    values['versioname'] = filename
-    values['source'] = 'subscenter'
-    values['year'] = xbmc.getInfoLabel("VideoPlayer.Year")
-    values['season'] = str(xbmc.getInfoLabel("VideoPlayer.Season"))
-    values['episode'] = str(xbmc.getInfoLabel("VideoPlayer.Episode"))
-    values['imdb'] = str(xbmc.getInfoLabel("VideoPlayer.IMDBNumber"))
-    values['tvshow'] = normalizeString(xbmc.getInfoLabel("VideoPlayer.TVshowtitle"))
-    values['title'] = normalizeString(xbmc.getInfoLabel("VideoPlayer.OriginalTitle"))
-    values['file_original_path'] = urllib.unquote(unicode(xbmc.Player().getPlayingFile(), 'utf-8'))
-    url = 'http://subs.thewiz.info/send.php'
-    try:
-        post(url, files={'sub': open(sub_file, 'rb')}, data=values)
-    except:
+    if __isKodiPlaying__:
+        values = {}
+        values['id'] = id
+        values['versioname'] = filename
+        values['source'] = 'subscenter'
+        values['year'] = xbmc.getInfoLabel("VideoPlayer.Year")
+        values['season'] = str(xbmc.getInfoLabel("VideoPlayer.Season"))
+        values['episode'] = str(xbmc.getInfoLabel("VideoPlayer.Episode"))
+        values['imdb'] = str(xbmc.getInfoLabel("VideoPlayer.IMDBNumber"))
+        values['tvshow'] = normalizeString(xbmc.getInfoLabel("VideoPlayer.TVshowtitle"))
+        values['title'] = normalizeString(xbmc.getInfoLabel("VideoPlayer.OriginalTitle"))
+        values['file_original_path'] = urllib.unquote(unicode(xbmc.Player().getPlayingFile(), 'utf-8'))
+
+        url = 'http://subs.thewiz.info/send.php'
+        try:
+            post(url, files={'sub': open(sub_file, 'rb')}, data=values)
+        except:
+            pass
+
+    else:
         pass
 
 params = get_params()
@@ -120,21 +127,39 @@ if params['action'] in ['search', 'manualsearch']:
         params['searchstring'] = urllib.unquote(params['searchstring'])
 
     item = {}
-    item['temp'] = False
-    item['rar'] = False
-    item['year'] = xbmc.getInfoLabel("VideoPlayer.Year")  # Year
-    item['season'] = str(xbmc.getInfoLabel("VideoPlayer.Season"))  # Season
-    item['episode'] = str(xbmc.getInfoLabel("VideoPlayer.Episode"))  # Episode
-    item['tvshow'] = normalizeString(xbmc.getInfoLabel("VideoPlayer.TVshowtitle"))  # Show
-    item['title'] = normalizeString(xbmc.getInfoLabel("VideoPlayer.OriginalTitle"))  # try to get original title
-    item['file_original_path'] = urllib.unquote(unicode(xbmc.Player().getPlayingFile(), 'utf-8'))  # Full path of a playing file
-    item['3let_language'] = []
-    item['preferredlanguage'] = unicode(urllib.unquote(params.get('preferredlanguage', '')), 'utf-8')
-    item['preferredlanguage'] = xbmc.convertLanguage(item['preferredlanguage'], xbmc.ISO_639_2)
+    
+    if __isKodiPlaying__:
+        item['temp'] = False
+        item['rar'] = False
+        item['year'] = xbmc.getInfoLabel("VideoPlayer.Year")  # Year
+        item['season'] = str(xbmc.getInfoLabel("VideoPlayer.Season"))  # Season
+        item['episode'] = str(xbmc.getInfoLabel("VideoPlayer.Episode"))  # Episode
+        item['tvshow'] = normalizeString(xbmc.getInfoLabel("VideoPlayer.TVshowtitle"))  # Show
+        item['title'] = normalizeString(xbmc.getInfoLabel("VideoPlayer.OriginalTitle"))  # try to get original title
+        item['file_original_path'] = urllib.unquote(unicode(xbmc.Player().getPlayingFile(), 'utf-8'))  # Full path of a playing file
+        item['3let_language'] = []
+        item['preferredlanguage'] = unicode(urllib.unquote(params.get('preferredlanguage', '')), 'utf-8')
+        item['preferredlanguage'] = xbmc.convertLanguage(item['preferredlanguage'], xbmc.ISO_639_2)
 
-    if item['title'] == "":
+    else:
+        item['temp'] = False
+        item['rar'] = False
+        item['year'] = ""
+        item['season'] = ""
+        item['episode'] = ""
+        item['tvshow'] = ""
+        item['title'] = ""
+        item['file_original_path'] = ""
+        item['3let_language'] = []
+        item['preferredlanguage'] = unicode(urllib.unquote(params.get('preferredlanguage', '')), 'utf-8')
+        item['preferredlanguage'] = xbmc.convertLanguage(item['preferredlanguage'], xbmc.ISO_639_2)
+
+
+    if item['title'] == "" and __isKodiPlaying__:
         log("VideoPlayer.OriginalTitle not found")
         item['title'] = normalizeString(xbmc.getInfoLabel("VideoPlayer.Title"))  # no original title, get just Title
+    else:
+        item['title'] = "Search For..." # Needed to avoid showing previous search result.
 
     if params['action'] == 'manualsearch':
         if item['season'] != '' or item['episode']:
